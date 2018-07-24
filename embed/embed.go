@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/pkg/errors"
 	"golang.org/x/tools/imports"
 )
 
@@ -72,7 +74,7 @@ type _escDir struct {
 }
 
 // Run executes a Config.
-func Run(conf *Config) error {
+func Run(conf *Config, out io.Writer) error {
 	var err error
 	if conf.ModTime != "" {
 		i, err := strconv.ParseInt(conf.ModTime, 10, 64)
@@ -124,21 +126,21 @@ func Run(conf *Config) error {
 			n := canonicFileName(fname, prefix)
 			if fi.IsDir() {
 				fis, err := f.Readdir(0)
+				if err != nil {
+					return err
+				}
 				dir := &_escDir{
 					Name:           n,
 					Local:          fpath,
 					ChildFileNames: make([]string, 0, len(fis)),
 				}
-				if err != nil {
-					return err
-				}
 				for _, fi := range fis {
 					childFName := filepath.Join(fname, fi.Name())
+					files = append(files, childFName)
 					if ignoreRegexp != nil && ignoreRegexp.MatchString(childFName) {
 						continue
 					}
 					if includeRegexp == nil || includeRegexp.MatchString(childFName) {
-						files = append(files, childFName)
 						dir.ChildFileNames = append(dir.ChildFileNames, canonicFileName(filepath.Join(fname, fi.Name()), prefix))
 					}
 				}
@@ -146,7 +148,7 @@ func Run(conf *Config) error {
 			} else if includeRegexp == nil || includeRegexp.MatchString(fname) {
 				b, err := ioutil.ReadAll(f)
 				if err != nil {
-					return err
+					return errors.Wrap(err, "readAll return err")
 				}
 				if alreadyPrepared[n] {
 					return fmt.Errorf("%s, %s: duplicate Name after prefix removal", n, fpath)
@@ -195,20 +197,11 @@ func Run(conf *Config) error {
 
 	data, err := imports.Process(fakeOutFileName, buf.Bytes(), nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "imports.Process return error")
 	}
 
-	out := os.Stdout
-	if conf.OutputFile != "" {
-		if out, err = os.Create(conf.OutputFile); err != nil {
-			return err
-		}
-	}
 	fmt.Fprint(out, string(data))
 
-	if conf.OutputFile != "" {
-		return out.Close()
-	}
 	return nil
 }
 

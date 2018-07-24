@@ -9,7 +9,8 @@ install:
   - go install .
 
 script:
-  - esc -o static.go main.go
+  - esc -o static.go testdata
+  - go test  ./...
   - go vet ./...
   - LINT=$(golint ./...) && echo $LINT
   - test -z "$LINT"
