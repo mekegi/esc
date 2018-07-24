@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/mjibson/esc/embed"
+	"github.com/mekegi/esc/embed"
 )
 
 func main() {

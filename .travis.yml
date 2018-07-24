@@ -6,6 +6,7 @@ matrix:
 
 install:
   - go get github.com/golang/lint/golint
+  - go get ./...
   - go install .
 
 script:
