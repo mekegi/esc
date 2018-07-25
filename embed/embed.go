@@ -59,6 +59,7 @@ type templateParams struct {
 
 type _escFile struct {
 	Name       string
+	BaseName   string
 	Data       []byte
 	Local      string
 	ModTime    int64
@@ -69,6 +70,7 @@ type _escFile struct {
 
 type _escDir struct {
 	Name           string
+	BaseName       string
 	Local          string
 	ChildFileNames []string
 }
@@ -131,6 +133,7 @@ func Run(conf *Config, out io.Writer) error {
 				}
 				dir := &_escDir{
 					Name:           n,
+					BaseName:       path.Base(n),
 					Local:          fpath,
 					ChildFileNames: make([]string, 0, len(fis)),
 				}
@@ -155,6 +158,7 @@ func Run(conf *Config, out io.Writer) error {
 				}
 				escFile := &_escFile{
 					Name:     n,
+					BaseName: path.Base(n),
 					Data:     b,
 					Local:    fpath,
 					fileinfo: fi,
@@ -340,15 +344,15 @@ func (f *_escFile) Close() error {
 }
 
 func (f *_escFile) Readdir(count int) ([]os.FileInfo, error) {
-    if !f.isDir {
-		return nil, os.ErrInvalid
+	if !f.isDir {
+		return nil, fmt.Errorf(" escFile.Readdir: '%s' is not directory", f.name)
 	}
 
-	fis, ok := _escDirs[f.name]
+	fis, ok := _escDirs[f.local]
 	if !ok {
-		return nil, os.ErrInvalid
+		return nil, fmt.Errorf(" escFile.Readdir: '%s' is directory, but we have no info about content of this dir, local=%s", f.name, f.local)
 	}
-	limit := count
+    limit := count
 	if count <= 0 || limit > len(fis) {
 		limit = len(fis)
 	}
@@ -449,6 +453,7 @@ func {{.FunctionPrefix}}FSMustString(useLocal bool, name string) string {
 var _escData = map[string]*_escFile{
 {{ range .Files }}
 	"{{ .Name }}": {
+		name:    "{{ .BaseName }}",
 		local:   "{{ .Local }}",
 		size:    {{ .Data | len  }},
 		modtime: {{ .ModTime }},
@@ -457,6 +462,7 @@ var _escData = map[string]*_escFile{
 {{ end -}}
 {{ range .Dirs }}
 	"{{ .Name }}": {
+		name:  "{{ .BaseName }}",
 		local: ` + "`" + `{{ .Local }}` + "`" + `,
 		isDir: true,
 	},
@@ -465,7 +471,7 @@ var _escData = map[string]*_escFile{
 
 var _escDirs = map[string][]os.FileInfo{
   {{ range .Dirs }}
-	"{{ .Name }}": {
+	"{{ .Local }}": {
 		{{ range .ChildFileNames -}}
 		_escData["{{.}}"],
 		{{ end }}
